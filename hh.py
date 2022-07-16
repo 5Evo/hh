@@ -4,9 +4,8 @@
 '''
 
 import requests
-import json
-from pprint import pprint
-
+from save_files import save_data
+from hh_methods import calculate_salary
 from hh_methods import skil_stat
 
 # Блок констант
@@ -22,7 +21,7 @@ def hh_is_ok(url=DOMAIN):
 
 
 # для начала проверим доступность сервера
-# hh_is_ok()
+hh_is_ok()
 
 
 # Запросим критерии поиска вакансии:
@@ -36,14 +35,25 @@ search = 'python developer'     # поисковый запрос
 
 
 # запроcим все вакансии по нашим критериям
-request_skils = [] # подготовим список навыков по всем вакансиям
-all_id = []
+request_skils = []      # список навыков по всем вакансиям
+request_sallary = []    # список зарплат по всем вакансиям
+all_id = []             # спиоск id всех найденный вакансий
+
 url_vacancies = f'{DOMAIN}vacancies'
-for page in range(20):
+per_page = 30
+
+while True: # запросим колчисвто страниц
+    try:
+        pages = int(input(f'На странице будет {per_page} вакансий. Сколько страниц (максимум {2000/per_page}): '))
+        break
+    except ValueError:
+        print("Oops!  That was no valid number.  Try again...")
+
+for page in range(pages):  # API Отдает максимум 2000 вакансий (20 страниц по 100 вакансий)
     params = {
             'text': search,
             'page': page,       # есть страницы т.к. данных много
-            'per_page': 100
+            'per_page': per_page
             }
     print(f' Получаем страницу {page}')
     vacancies = requests.get(url_vacancies, params=params).json()
@@ -52,75 +62,56 @@ for page in range(20):
     per_page = vacancies['per_page']
     #print(f'Поиск по "{search}" \nНайдено вакансий: {vacancy_count} на {page_count} страницах')
     #pprint(vacancies)
+
     # составим список ID всех вакансий на странице:
     for vacancy in range(per_page):
-         print(f'------------- вакансия {vacancy}')
-         id_temp = vacancies['items'][vacancy]['id']
-         all_id.append(id_temp)
+         #print(f'------------- вакансия {vacancy}')
+         # id_temp = vacancies['items'][vacancy]['id']
+         all_id.append(vacancies['items'][vacancy]['id']) #
     # TODO: проверить на наличие скилов: их может и не быть и выдаст следующую ошибку:
     # Traceback (most recent call last):
     # File "C:\Users\aleks\PycharmProjects\hh\hh.py", line 69, in <module>
     # vacancy_skils = requests.get(url_vacancy).json()['key_skills']
     # KeyError: 'key_skills'
 
-    # разберем навыки внутри каждой вакансии:
+    # разберем навыки и доход внутри каждой вакансии:
     for vacancy in range(per_page):         # пробежимся по первым 100 вакансиям
+        url_vacancy = vacancies['items'][vacancy]['url']        # получим ссылку на вакансию
+        #print(f'Страница {page}. Вакансия {vacancy}: {url_vacancy}')
 
-        # получим ссылку на вакансию
-        url_vacancy = vacancies['items'][vacancy]['url']
-        print(f'Страница {page}. Вакансия {vacancy}: {url_vacancy}')
-
-        # из отдельного запроса по вакансии получить необходимые данные
-        #TODO: Если нет скилов в первой вакансии - ошибка
+        # обрабатываем скилы:
         try:
             vacancy_skils = requests.get(url_vacancy).json()['key_skills']
-            vacancy_salary = requests.get(url_vacancy).json()['salary']
         except Exception as e:
             print('Не могу плучить данные по вакансии')
+            vacancy_skils = {'name': None}
+            print('в Скилы сохранили None ')
 
-        # добавим скилы текущей вакансии в общий список скилов:
-        for skil in vacancy_skils:
-            request_skils.append(skil['name'])
+        for skil in vacancy_skils:          # добавим скилы текущей вакансии в общий список скилов:
+            try:
+                request_skils.append(skil['name'])
+            except Exception as e:
+                print('Не получилось выбрать Скил')
+
+        #обрабатываем зарплаты:
+        try:
+            vacancy_salary = requests.get(url_vacancy).json()['salary']
+            request_sallary.append(vacancy_salary)
+        except Exception as e:
+            print('Не указан доход')
 
         print(f'Требуемые скилы: {vacancy_skils}')
         print(f'Доход: {vacancy_salary}')
-        # собрать все данные в свой список
 
 
 
-                    # получение данных со страницы вакансии
-
-                    #items_num = 1       # какую запись (вакансию) просмотрим
-                    #key_params = 'id'   # что именно внутри вакансии интересует
-                    #print('ID вакансии:', vacancies['items'][items_num][key_params])
-                    # pprint(vacancies['items'][items_num]) # выводим информацию о вакансии из общего списка вакансий
-                    # pprint(vacancies)
-                    # пройдемся по  всем вакансиям и сохраним краткую выжимку по вакансиям в список
 
 print(f'Обработали все страницы, количество найденых ID {len(all_id)}')
-
-
-
-
-# for vacancy in range(100):         # пробежимся по первым 100 вакансиям
-#
-#     # получим ссылку на вакансию
-#     url_vacancy = vacancies['items'][vacancy]['url']
-#     print(f'Вакансия {vacancy}: {url_vacancy}')
-#
-#     # из отдельного запроса по вакансии получить необходимые данные
-#     vacancy_skils = requests.get(url_vacancy).json()['key_skills']
-#     vacancy_salary = requests.get(url_vacancy).json()['salary']
-#
-#     # добавим скилы текущей вакансии в общий список скилов:
-#     for skil in vacancy_skils:
-#         request_skils.append(skil['name'])
-#
-#     print(f'Требуемые скилы: {vacancy_skils}')
-#     print(f'Доход: {vacancy_salary}')
-#     # собрать все данные в свой список
-#
-#
-# print(f'Полный список навыков для всех вакансий: {request_skils}')
+#print(f'Полный список навыков для всех вакансий: {request_skils}')
+av_salary = calculate_salary(request_sallary)
+print(f'Доходы по всем вакансиям: {av_salary}')
 skil_report = skil_stat(request_skils)
 print(f'статистика по скилам: {skil_report}')
+
+save_data('competencies.txt', skil_report)
+save_data('salary.txt', av_salary)
